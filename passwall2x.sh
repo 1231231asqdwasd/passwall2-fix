@@ -92,5 +92,54 @@ else
   echo -e "${YELLOW} xray не установлен — узлы vless/xray работать не будут. ${NC}"
 fi
 
+# --- pw2-watch: авто-рестарт ядра при изменении конфига в LuCI ---
+# LuCI коммитит настройки (узел, скорость, порты), но НЕ рестартит ядро —
+# поэтому правки в вебе не применяются. Этот сторож следит за
+# /etc/config/passwall2 и сам перезапускает ядро на любой коммит.
+echo -e "${GREEN} Ставлю сторож pw2-watch (авто-применение правок из вебы)... ${NC}"
+
+cat > /usr/bin/pw2-watch <<'PW2WATCH_EOF'
+#!/bin/sh
+# Рестартит ядро passwall2 при ЛЮБОМ изменении /etc/config/passwall2.
+# Логика: md5 конфига; изменился -> ждём 3с (даём морде дописать) ->
+# если устаканился, рестартим. После рестарта берём хэш заново (passwall2
+# мог обновить timestamp) — без петли.
+prev=""
+while :; do
+    if [ "$(uci -q get passwall2.@global[0].enabled)" = "1" ]; then
+        h=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+        if [ -n "$prev" ] && [ -n "$h" ] && [ "$h" != "$prev" ]; then
+            sleep 3
+            h2=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+            if [ "$h2" = "$h" ]; then
+                logger -t pw2-watch "passwall2 config changed, restarting core"
+                /etc/init.d/passwall2 restart
+                sleep 8
+                h=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+            fi
+        fi
+        prev="$h"
+    fi
+    sleep 4
+done
+PW2WATCH_EOF
+chmod +x /usr/bin/pw2-watch
+
+cat > /etc/init.d/pw2-watch <<'PW2INIT_EOF'
+#!/bin/sh /etc/rc.common
+START=99
+USE_PROCD=1
+start_service() {
+    procd_open_instance
+    procd_set_param command /usr/bin/pw2-watch
+    procd_set_param respawn
+    procd_close_instance
+}
+PW2INIT_EOF
+chmod +x /etc/init.d/pw2-watch
+/etc/init.d/pw2-watch enable
+/etc/init.d/pw2-watch restart
+
 /etc/init.d/rpcd restart
 echo -e "${GREEN} Готово. Обнови LuCI (Ctrl+F5) -> меню 'Сервисы' -> PassWall 2. ${NC}"
+echo -e "${GREEN} pw2-watch запущен: правки узла/скорости из вебы применяются сами (~10с). ${NC}"

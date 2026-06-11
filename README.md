@@ -112,6 +112,8 @@ uclient-fetch --no-check-certificate -O /usr/lib/lua/luci/i18n/passwall2.ru.lmo 
 
 ## Файлы
 
-- `passwall2x.sh` — полный установщик (фиды + ключ + пакеты + tproxy-модули).
+- `passwall2x.sh` — полный установщик (фиды + ключ + пакеты + tproxy-модули + sing-box + сторож `pw2-watch`). Ставит сразу всё.
 - `install.sh` — минимальный фикс ключа + установка пакета.
+- `install-autoswitch.sh` — отдельная установка только сторожа `pw2-watch` (для уже настроенных роутеров).
+- `switch-node.sh` — переключение узла из консоли (set + commit + restart).
 - `ipk.pub` — публичный ключ подписи (резерв, если `wget` не возьмёт).
