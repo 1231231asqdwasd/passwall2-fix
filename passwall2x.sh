@@ -59,8 +59,17 @@ opkg install kmod-netlink-diag
 opkg install kmod-tun
 opkg install ipset
 
+# --- tproxy-модули ядра: загрузить СЕЙЧАС и закрепить автозагрузку ---
+# Без этого passwall2 ругается "missing basic dependency kmod-nft-socket/tproxy"
+# и ядро не стартует ("Core NOT RUNNING"), хотя пакеты kmod установлены.
+echo -e "${GREEN} Загружаю tproxy-модули ядра... ${NC}"
+modprobe nft_socket 2>/dev/null
+modprobe nft_tproxy 2>/dev/null
+printf 'nft_socket\nnft_tproxy\n' > /etc/modules.d/30-passwall2-tproxy
+
 # --- Ядро прокси ---
-echo -e "${GREEN} Ставлю xray-core... ${NC}"
+echo -e "${GREEN} Ставлю прокси-ядра (sing-box для Hysteria2/vless, xray)... ${NC}"
+opkg install sing-box || echo -e "${YELLOW} sing-box не установился (нужен для Hysteria2!) ${NC}"
 opkg install xray-core
 
 # --- Проверка результата ---
