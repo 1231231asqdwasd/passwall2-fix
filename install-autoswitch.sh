@@ -16,20 +16,30 @@ set -e
 # --- сам сторож ---
 cat > /usr/bin/pw2-watch <<'EOF'
 #!/bin/sh
-# Рестартит ядро passwall2, когда выбранный узел (uci) перестал
-# совпадать с реально запущенным конфигом ядра. Опрос раз в 5 сек.
-last=""
+# Рестартит ядро passwall2 при ЛЮБОМ изменении /etc/config/passwall2
+# (смена узла, правка скорости/портов и т.п.). LuCI коммитит конфиг, но
+# не рестартит ядро — этот сторож закрывает дыру.
+#
+# Логика: считаем md5 конфига. Если изменился — ждём 3с (даём морде
+# дописать), и если хэш устаканился — рестартим. После рестарта берём
+# хэш заново как базовый (passwall2 мог обновить timestamp) — без петли.
+prev=""
 while :; do
-    en=$(uci -q get passwall2.@global[0].enabled)
-    node=$(uci -q get passwall2.@global[0].node)
-    if [ "$en" = "1" ] && [ -n "$node" ] && [ "$node" != "$last" ]; then
-        if ! ls /tmp/etc/passwall2/global_*_${node}_*.json >/dev/null 2>&1; then
-            logger -t pw2-watch "node changed to $node, restarting passwall2"
-            /etc/init.d/passwall2 restart
+    if [ "$(uci -q get passwall2.@global[0].enabled)" = "1" ]; then
+        h=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+        if [ -n "$prev" ] && [ -n "$h" ] && [ "$h" != "$prev" ]; then
+            sleep 3
+            h2=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+            if [ "$h2" = "$h" ]; then
+                logger -t pw2-watch "passwall2 config changed, restarting core"
+                /etc/init.d/passwall2 restart
+                sleep 8
+                h=$(md5sum /etc/config/passwall2 2>/dev/null | cut -d' ' -f1)
+            fi
         fi
-        last="$node"
+        prev="$h"
     fi
-    sleep 5
+    sleep 4
 done
 EOF
 chmod +x /usr/bin/pw2-watch
