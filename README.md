@@ -83,6 +83,22 @@ Hysteria2 умеет **sing-box** (или бинарь `hysteria`), а **не xr
 Иногда сервис остаётся в стопе (в логе хвост — `Clearing and closing... Running
 complete!` без последующего старта). Просто перезапусти: `/etc/init.d/passwall2 restart`.
 
+### Веб-морда меняет узел, но конект остаётся прежним
+Частый баг: LuCI passwall2 **коммитит** выбор узла (`uci get passwall2.@global[0].node`
+показывает новый), но **не перезапускает ядро** — процесс продолжает крутить старый
+конфиг (`/tmp/etc/passwall2/global_*_<СТАРЫЙ_УЗЕЛ>_*.json`). Трафик идёт через старый узел.
+
+Разовый фикс — рестартить ядро после смены узла:
+```sh
+/etc/init.d/passwall2 restart
+```
+Чтобы морда работала сама — поставь сторож `pw2-watch` (рестартит ядро при смене узла за ~5с):
+```sh
+uclient-fetch -O /tmp/a.sh https://raw.githubusercontent.com/1231231asqdwasd/passwall2-fix/main/install-autoswitch.sh
+sh /tmp/a.sh
+```
+Либо переключай узлы из консоли через `switch-node.sh` (см. ниже) — он сам коммитит и рестартит.
+
 ### Русификатор LuCI для passwall2
 Положи `.lmo` в каталог i18n (создай его, если нет), качай через `uclient-fetch`
 (busybox `wget` не тянет редирект GitHub):
